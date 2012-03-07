@@ -36,6 +36,8 @@
   </publications>
 
   <dependencies>
+	<dependency org="com.springsense" name="disambigj" rev="2.0.2.89"/>
+	<dependency org="org.hamcrest" name="hamcrest-core" rev="1.2.1" conf="test"/>
   </dependencies>
   
 </ivy-module>

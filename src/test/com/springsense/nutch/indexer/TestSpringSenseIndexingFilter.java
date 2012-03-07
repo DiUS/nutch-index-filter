@@ -1,5 +1,5 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
+/**
+ * Based on TestMoreIndexingFilter, licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
  * The ASF licenses this file to You under the Apache License, Version 2.0
@@ -31,60 +31,36 @@ import org.apache.nutch.parse.ParseStatus;
 import org.apache.nutch.util.NutchConfiguration;
 
 import junit.framework.TestCase;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 public class TestSpringSenseIndexingFilter extends TestCase {
 
-  public void testContentType() throws IndexingException {
-    Configuration conf = NutchConfiguration.create();
-    assertContentType(conf, "text/html", "text/html");
-    assertContentType(conf, "text/html; charset=UTF-8", "text/html");
-  }
-  
-  public void testGetParts() {
-    String[] parts = SpringSenseIndexingFilter.getParts("text/html");
-    assertParts(parts, 2, "text", "html");
-  }
+	public void testDisambiguatesFieldsCorrectly() {
+		Configuration conf = NutchConfiguration.create();
+		conf.setStrings("springSenseIndexingFilter.fieldsToDisambiguate", "title", "content");
 
-  /**
-   * @since NUTCH-901
-   */
-  public void testNoParts(){
-    Configuration conf = NutchConfiguration.create();
-    conf.setBoolean("springSenseIndexingFilter.indexMimeTypeParts", false);
-    SpringSenseIndexingFilter filter = new SpringSenseIndexingFilter();
-    filter.setConf(conf);
-    assertNotNull(filter);
-    NutchDocument doc = new NutchDocument();
-    ParseImpl parse = new ParseImpl("foo bar", new ParseData());
-    
-    try{
-        filter.filter(doc, parse, new Text("http://nutch.apache.org/index.html"), new CrawlDatum(), new Inlinks());
-    }
-    catch(Exception e){
-        e.printStackTrace();
-        fail(e.getMessage());
-    }
-    assertNotNull(doc);
-    assertTrue(doc.getFieldNames().contains("type"));
-    assertEquals(1, doc.getField("type").getValues().size());
-    assertEquals("text/html", doc.getFieldValue("type"));    
-  }
+		SpringSenseIndexingFilter filter = new SpringSenseIndexingFilter();
+		filter.setConf(conf);
+		assertNotNull(filter);
 
-  private void assertParts(String[] parts, int count, String... expected) {
-    assertEquals(count, parts.length);
-    for (int i = 0; i < expected.length; i++) {
-      assertEquals(expected[i], parts[i]);
-    }
-  }
-  
-  private void assertContentType(Configuration conf, String source, String expected) throws IndexingException {
-    Metadata metadata = new Metadata();
-    metadata.add(Response.CONTENT_TYPE, source);
-    SpringSenseIndexingFilter filter = new SpringSenseIndexingFilter();
-    filter.setConf(conf);
-    NutchDocument doc = filter.filter(new NutchDocument(), new ParseImpl("text", new ParseData(
-        new ParseStatus(), "title", new Outlink[0], metadata)), new Text(
-        "http://www.example.com/"), new CrawlDatum(), new Inlinks());
-    assertEquals("mime type not detected", expected, doc.getFieldValue("type"));
-  }
+		NutchDocument doc = new NutchDocument();
+		doc.add("title", "title 1");
+		doc.add("title", "title 2");
+		doc.add("content", "content 1");
+
+		ParseImpl parse = new ParseImpl("Not used", new ParseData());
+
+		try {
+			filter.filter(doc, parse, new Text("http://nutch.apache.org/index.html"), new CrawlDatum(), new Inlinks());
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+
+		assertNotNull(doc);
+		assertTrue(doc.getFieldNames().contains("springsense.title.0"));
+		assertEquals(2, doc.getField("springsense.title.0").getValues().size());
+		assertThat(doc.getField("springsense.title.0").getValues()).contains("first disambig of title 1");
+	}
+
 }
