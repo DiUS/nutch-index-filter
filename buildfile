@@ -44,6 +44,7 @@ define "index-springsense" do
   compile.with DISAMBIGJ, NUTCH
   compile.using :target => "1.5"
   test.compile.with JUNIT4, HAMCREST, MOCKITO, COMMONS_LOGGING
+  test.using :java_args => [ '-Xmx2g' ]
 
   package(:jar)
 end

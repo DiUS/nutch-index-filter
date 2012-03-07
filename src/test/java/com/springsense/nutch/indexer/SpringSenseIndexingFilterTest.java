@@ -16,11 +16,13 @@
  */
 package com.springsense.nutch.indexer;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import static org.hamcrest.Matchers.*;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
@@ -56,6 +58,8 @@ public class SpringSenseIndexingFilterTest {
 
 		filter = new SpringSenseIndexingFilter();
 		filter.setConf(conf);
+		
+		filter.setDisambiguatorFactory(mockDisambiguatorFactory);
 	}
 
 	@Test
@@ -66,6 +70,12 @@ public class SpringSenseIndexingFilterTest {
 	@Test
 	public void itShouldConfigureMatrixDirectoryCorrectly() {
 		assertEquals("/media/matrix.data/current", filter.getMatrixDirectory());
+	}
+	
+	@Test
+	public void itShouldConfigureFieldsToDisambiguateCorrectly() {
+		assertThat(filter.getFieldsToDisambiguate(), hasItem("title"));
+		assertThat(filter.getFieldsToDisambiguate(), hasItem("content"));
 	}
 	
 	@Test
