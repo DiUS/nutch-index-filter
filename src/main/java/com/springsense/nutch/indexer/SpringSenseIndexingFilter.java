@@ -16,8 +16,7 @@
  */
 package com.springsense.nutch.indexer;
 
-
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.io.Text;
 import org.apache.nutch.crawl.CrawlDatum;
 import org.apache.nutch.crawl.Inlinks;
@@ -28,28 +27,16 @@ import org.apache.nutch.parse.Parse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+public class SpringSenseIndexingFilter extends Configured implements IndexingFilter {
+	public static final Logger LOG = LoggerFactory.getLogger(SpringSenseIndexingFilter.class);
 
-/**
- * SpringSense Disambiguation Filter
- */
+	public NutchDocument filter(NutchDocument doc, Parse parse, Text url, CrawlDatum datum, Inlinks inlinks) throws IndexingException {
 
-public class SpringSenseIndexingFilter implements IndexingFilter {
-  public static final Logger LOG = LoggerFactory.getLogger(SpringSenseIndexingFilter.class);
-  
-  private Configuration conf;
+		return doc;
+	}
 
-  public NutchDocument filter(NutchDocument doc, Parse parse, Text url, CrawlDatum datum, Inlinks inlinks)
-    throws IndexingException {
-
-    return doc;
-  }
-
-  public void setConf(Configuration conf) {
-    this.conf = conf;
-  }
-
-  public Configuration getConf() {
-    return this.conf;
-  }
+	public String getMatrixDirectory() {
+		return getConf().get("springSenseIndexingFilter.matrixDirectory");
+	}
 
 }

@@ -19,26 +19,57 @@ package com.springsense.nutch.indexer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.nutch.crawl.CrawlDatum;
 import org.apache.nutch.crawl.Inlinks;
 import org.apache.nutch.indexer.NutchDocument;
 import org.apache.nutch.parse.ParseData;
 import org.apache.nutch.parse.ParseImpl;
 import org.apache.nutch.util.NutchConfiguration;
+import org.junit.Before;
 import org.junit.Test;
 
-public class SpringSenseIndexingFilterTest {
+import com.springsense.disambig.Disambiguator;
+import com.springsense.disambig.DisambiguatorFactory;
 
-	@Test
-	public void testDisambiguatesFieldsCorrectly() {
-		Configuration conf = NutchConfiguration.create();
+public class SpringSenseIndexingFilterTest {
+	private DisambiguatorFactory mockDisambiguatorFactory;
+	private Disambiguator mockDisambiguator;
+	
+	private Configuration conf;
+	private SpringSenseIndexingFilter filter;
+
+	@Before()
+	public void setUp() throws Exception {
+		mockDisambiguatorFactory = mock(DisambiguatorFactory.class);
+		mockDisambiguator = mock(Disambiguator.class);
+		when(mockDisambiguatorFactory.openNewDisambiguator()).thenReturn(mockDisambiguator);
+
+		conf = NutchConfiguration.create();
+		conf.set("springSenseIndexingFilter.matrixDirectory", "/media/matrix.data/current");
 		conf.setStrings("springSenseIndexingFilter.fieldsToDisambiguate", "title", "content");
 
-		SpringSenseIndexingFilter filter = new SpringSenseIndexingFilter();
+		filter = new SpringSenseIndexingFilter();
 		filter.setConf(conf);
+	}
+
+	@Test
+	public void itShouldInstantiateCorrectly() {
+		assertNotNull(filter);
+	}
+	
+	@Test
+	public void itShouldConfigureMatrixDirectoryCorrectly() {
+		assertEquals("/media/matrix.data/current", filter.getMatrixDirectory());
+	}
+	
+	@Test
+	public void testDisambiguatesFieldsCorrectly() {
 		assertNotNull(filter);
 
 		NutchDocument doc = new NutchDocument();
