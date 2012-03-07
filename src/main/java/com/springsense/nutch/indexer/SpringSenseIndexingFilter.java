@@ -17,7 +17,9 @@
 package com.springsense.nutch.indexer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.conf.Configured;
@@ -31,18 +33,28 @@ import org.apache.nutch.parse.Parse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.springsense.disambig.DisambiguationResult;
+import com.springsense.disambig.DisambiguationResult.Sentence;
+import com.springsense.disambig.DisambiguationResult.Variant;
+import com.springsense.disambig.Disambiguator;
 import com.springsense.disambig.DisambiguatorFactory;
+import com.springsense.disambig.SentenceDisambiguationResult;
 
 public class SpringSenseIndexingFilter extends Configured implements IndexingFilter {
 	public static final Logger LOG = LoggerFactory.getLogger(SpringSenseIndexingFilter.class);
 
+	private ThreadLocal<Disambiguator> disambiguatorStore;
 	private DisambiguatorFactory disambiguatorFactory = null;
 
 	private static DisambiguatorFactory classLoaderDisambiguationFactory = null;
 
-	public NutchDocument filter(NutchDocument doc, Parse parse, Text url, CrawlDatum datum, Inlinks inlinks) throws IndexingException {
+	public NutchDocument filter(NutchDocument document, Parse parse, Text url, CrawlDatum datum, Inlinks inlinks) throws IndexingException {
 
-		return doc;
+		for (String fieldToDisambiguate : getFieldsToDisambiguate()) {
+			disambiguateAndStore(document, fieldToDisambiguate);
+		}
+		
+		return document;
 	}
 
 	public String getMatrixDirectory() {
@@ -53,6 +65,41 @@ public class SpringSenseIndexingFilter extends Configured implements IndexingFil
 		return new HashSet<String>(getConf().getStringCollection("springSenseIndexingFilter.fieldsToDisambiguate"));
 	}
 
+	protected DisambiguationResult convertToApiView(SentenceDisambiguationResult[] result) {
+		List<Sentence> sentences = new ArrayList<Sentence>(result == null ? 0 : result.length);
+		if (result != null) {
+			for (SentenceDisambiguationResult taggedSentence : result) {
+				sentences.add(taggedSentence.toApiView());
+			}
+		}
+
+		DisambiguationResult resultAsApi = new DisambiguationResult(sentences);
+		return resultAsApi;
+	}
+
+	protected void disambiguateAndStore(NutchDocument document, String fieldName) {
+		if (!document.getFieldNames().contains(fieldName)) {
+			return;
+		}
+
+		String springSenseTextFieldName = String.format("springsense.%s.text", fieldName);
+
+		List<Object> fieldValue = document.getField(fieldName).getValues();
+		for (Object valueObj : fieldValue) {
+			
+			String value = valueObj.toString();
+			SentenceDisambiguationResult[] result = getDisambiguator().disambiguateText(value, 3, false, true, false);
+			DisambiguationResult resultAsApi = convertToApiView(result);
+
+			int i = 0;
+			List<Variant> variants = resultAsApi.getVariants();
+			for (Variant variant : variants) {
+				document.add(String.format("%s.%d", springSenseTextFieldName, i), variant.toString());
+				i++;
+			}
+		}
+	}	
+	
 	public DisambiguatorFactory getDisambiguatorFactory() {
 		if (disambiguatorFactory == null) {
 			synchronized (getClass()) {
@@ -82,4 +129,28 @@ public class SpringSenseIndexingFilter extends Configured implements IndexingFil
 		this.disambiguatorFactory = disambiguatorFactory;
 	}
 
+	public Disambiguator getDisambiguator() {
+		return ((Disambiguator) (this.getDisambiguatorStore().get()));
+	}
+
+	public ThreadLocal<Disambiguator> getDisambiguatorStore() {
+		if (disambiguatorStore == null) {
+			disambiguatorStore = new ThreadLocal<Disambiguator>() {
+
+				@Override
+				protected Disambiguator initialValue() {
+					try {
+						LOG.info("Opening a new disambiguator for this thread.");
+						return (getDisambiguatorFactory().openNewDisambiguator());
+					} catch (IOException e) {
+						throw new RuntimeException("Could not create new disambiguator due to an error", e);
+					}
+				}
+
+			};
+		}
+		return disambiguatorStore;
+	}
+
+	
 }

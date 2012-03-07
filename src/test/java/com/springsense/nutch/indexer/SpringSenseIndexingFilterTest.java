@@ -16,50 +16,46 @@
  */
 package com.springsense.nutch.indexer;
 
-import static org.junit.Assert.*;
+import static org.hamcrest.Matchers.hasItem;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import static org.hamcrest.Matchers.*;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.nutch.crawl.CrawlDatum;
 import org.apache.nutch.crawl.Inlinks;
 import org.apache.nutch.indexer.NutchDocument;
+import org.apache.nutch.indexer.NutchField;
 import org.apache.nutch.parse.ParseData;
 import org.apache.nutch.parse.ParseImpl;
 import org.apache.nutch.util.NutchConfiguration;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.springsense.disambig.Disambiguator;
-import com.springsense.disambig.DisambiguatorFactory;
-
 public class SpringSenseIndexingFilterTest {
-	private DisambiguatorFactory mockDisambiguatorFactory;
-	private Disambiguator mockDisambiguator;
-	
+
 	private Configuration conf;
 	private SpringSenseIndexingFilter filter;
+	private NutchDocument nutchDocument;
+	private ParseImpl parse;
 
 	@Before()
 	public void setUp() throws Exception {
-		mockDisambiguatorFactory = mock(DisambiguatorFactory.class);
-		mockDisambiguator = mock(Disambiguator.class);
-		when(mockDisambiguatorFactory.openNewDisambiguator()).thenReturn(mockDisambiguator);
-
 		conf = NutchConfiguration.create();
-		conf.set("springSenseIndexingFilter.matrixDirectory", "/media/matrix.data/current");
+		conf.set("springSenseIndexingFilter.matrixDirectory", "/media/matrix.data/current/this");
 		conf.setStrings("springSenseIndexingFilter.fieldsToDisambiguate", "title", "content");
 
 		filter = new SpringSenseIndexingFilter();
 		filter.setConf(conf);
 		
-		filter.setDisambiguatorFactory(mockDisambiguatorFactory);
+		nutchDocument = new NutchDocument();
+		nutchDocument.add("title", "title 1");
+		nutchDocument.add("title", "title 2");
+		nutchDocument.add("content", "content 1");
+
+		parse = new ParseImpl("Not used", new ParseData());
 	}
 
 	@Test
@@ -69,7 +65,7 @@ public class SpringSenseIndexingFilterTest {
 	
 	@Test
 	public void itShouldConfigureMatrixDirectoryCorrectly() {
-		assertEquals("/media/matrix.data/current", filter.getMatrixDirectory());
+		assertEquals("/media/matrix.data/current/this", filter.getMatrixDirectory());
 	}
 	
 	@Test
@@ -79,26 +75,28 @@ public class SpringSenseIndexingFilterTest {
 	}
 	
 	@Test
-	public void testDisambiguatesFieldsCorrectly() {
-		assertNotNull(filter);
-
-		NutchDocument doc = new NutchDocument();
-		doc.add("title", "title 1");
-		doc.add("title", "title 2");
-		doc.add("content", "content 1");
-
-		ParseImpl parse = new ParseImpl("Not used", new ParseData());
-
+	public void itShouldDisambiguateFieldsCorrectly() {
 		try {
-			filter.filter(doc, parse, new Text("http://nutch.apache.org/index.html"), new CrawlDatum(), new Inlinks());
+			filter.filter(nutchDocument, parse, new Text("http://nutch.apache.org/index.html"), new CrawlDatum(), new Inlinks());
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
 
-		assertNotNull(doc);
-//		assertTrue(doc.getFieldNames().contains("springsense.title.0"));
-//		assertEquals(2, doc.getField("springsense.title.0").getValues().size());
-//		assertThat(doc.getField("springsense.title.0").getValues()).contains("first disambig of title 1");
+		assertNotNull(nutchDocument);
+
+		assertTrue(nutchDocument.getFieldNames().contains("springsense.title.text.0"));
+		assertTrue(nutchDocument.getFieldNames().contains("springsense.content.text.0"));
+		
+		NutchField firstVariantTitleField = nutchDocument.getField("springsense.title.text.0");
+		NutchField firstVariantContentField = nutchDocument.getField("springsense.content.text.0");
+		
+		assertEquals(2, firstVariantTitleField.getValues().size());
+		assertEquals(1, firstVariantContentField.getValues().size());
+		
+		assertThat(firstVariantTitleField.getValues(), hasItem((Object)"title_n_01 1"));
+		assertThat(firstVariantTitleField.getValues(), hasItem((Object)"title_n_01 2"));
+
+		assertThat(firstVariantContentField.getValues(), hasItem((Object)"content_n_01 1"));
 	}
 
 }
