@@ -45,7 +45,7 @@ public class SpringSenseIndexingFilterTest {
 	public void setUp() throws Exception {
 		conf = NutchConfiguration.create();
 		conf.set("springSenseIndexingFilter.matrixDirectory", "/media/matrix.data/current/this");
-		conf.setStrings("springSenseIndexingFilter.fieldsToDisambiguate", "title", "content");
+		conf.set("springSenseIndexingFilter.fieldsToDisambiguate", "title, content");
 
 		filter = new SpringSenseIndexingFilter();
 		filter.setConf(conf);

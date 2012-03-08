@@ -18,10 +18,12 @@ package com.springsense.nutch.indexer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.io.Text;
 import org.apache.nutch.crawl.CrawlDatum;
@@ -49,10 +51,14 @@ public class SpringSenseIndexingFilter extends Configured implements IndexingFil
 	private static DisambiguatorFactory classLoaderDisambiguationFactory = null;
 
 	public NutchDocument filter(NutchDocument document, Parse parse, Text url, CrawlDatum datum, Inlinks inlinks) throws IndexingException {
-
+		if (LOG.isDebugEnabled()) {
+			LOG.debug(String.format("About to process '%s' with the SpringSense Indexing Filter. Fields to be disambiguated: %s", url.toString(), StringUtils.join(getFieldsToDisambiguate(), ',')));
+		}
+		
 		for (String fieldToDisambiguate : getFieldsToDisambiguate()) {
 			disambiguateAndStore(document, fieldToDisambiguate);
 		}
+		LOG.debug("\tDone.");
 		
 		return document;
 	}
@@ -62,7 +68,9 @@ public class SpringSenseIndexingFilter extends Configured implements IndexingFil
 	}
 
 	public Set<String> getFieldsToDisambiguate() {
-		return new HashSet<String>(getConf().getStringCollection("springSenseIndexingFilter.fieldsToDisambiguate"));
+		String[] split = getConf().get("springSenseIndexingFilter.fieldsToDisambiguate").split("\\s*,\\s*");
+		
+		return new HashSet<String>(Arrays.asList(split));
 	}
 
 	protected DisambiguationResult convertToApiView(SentenceDisambiguationResult[] result) {
