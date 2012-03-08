@@ -89,8 +89,22 @@ task 'index-springsense:plugin-xml' => 'target/index-springsense/plugin.xml'
 
 task 'index-springsense:plugin-artifact-dir' => [ 'index-springsense:plugin-xml', *copy_jar_tasks([ plugin_dependencies, project('index-springsense').package ].flatten) ]
   
-file "target/index-springsense-#{project('index-springsense').version}.tar.gz" => 'index-springsense:plugin-artifact-dir' do
+plugin_artifact_target = "target/index-springsense-#{project('index-springsense').version}.tar.gz"
+  
+file plugin_artifact_target => 'index-springsense:plugin-artifact-dir' do
   `cd target && tar -vcf index-springsense-#{project('index-springsense').version}.tar.gz index-springsense && cd ..`
 end
 
-task 'index-springsense:plugin-artifact' => "target/index-springsense-#{project('index-springsense').version}.tar.gz"
+task 'index-springsense:plugin-artifact' => plugin_artifact_target
+
+nutch_plugin_dir = "#{ENV['NUTCH_HOME']}/plugins/index-springsense"
+
+directory nutch_plugin_dir
+
+task 'index-springsense:plugin-deploy' => [ nutch_plugin_dir, 'index-springsense:plugin-artifact' ] do
+  tar_file = File.join(Dir.pwd, task(plugin_artifact_target).to_s)
+  puts "Will deploy '#{tar_file}' to: '#{nutch_plugin_dir}'..."
+
+  `cd #{ENV['NUTCH_HOME']}/plugins && tar -xvzf #{tar_file} && cd -`
+end
+
