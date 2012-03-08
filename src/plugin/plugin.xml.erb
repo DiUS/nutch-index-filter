@@ -23,9 +23,10 @@
 
 
    <runtime>
-      <library name="index-springsense.jar">
+      <library name="<%= main_jar %>">
          <export name="*"/>
       </library>
+      <%= libraries.map { | jar | "        <library name=\"#{jar}\" />" }.join("\n") %>
    </runtime>
 
    <requires>

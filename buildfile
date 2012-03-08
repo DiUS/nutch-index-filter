@@ -34,17 +34,63 @@ define "index-springsense" do
     artifact('log4j:log4j:jar:1.2.15'),
   ]
   
-  DISAMBIGJ = artifacts('com.springsense:disambigj:jar:2.0.2.90')
+  DISAMBIGJ = artifact('com.springsense:disambigj:jar:2.0.2.90')
 
   JUNIT4 = artifact("junit:junit:jar:4.8.2")
   HAMCREST = artifact("org.hamcrest:hamcrest-core:jar:1.2.1")
   MOCKITO = artifact("org.mockito:mockito-all:jar:1.8.5")
   COMMONS_LOGGING = artifacts('commons-logging:commons-logging:jar:1.1.1')
 
-  compile.with DISAMBIGJ, NUTCH
+  run.with DISAMBIGJ
+  compile.with NUTCH, DISAMBIGJ
   compile.using :target => "1.5"
   test.compile.with JUNIT4, HAMCREST, MOCKITO, COMMONS_LOGGING
   test.using :java_args => [ '-Xmx2g' ]
 
   package(:jar)
 end
+
+def plugin_dependencies
+  
+  deps = [] 
+  proj = project('index-springsense')
+  TransitiveDependencies.instance_eval { add_dependency(proj, deps, DISAMBIGJ, [nil, "compile", "runtime"]) }
+  
+  #puts "Deps:\n\t'#{deps.map(&:to_s).sort.join("'\n\t'")}"
+  
+  deps
+end
+
+def copy_jar_tasks(*dependencies)
+  dependencies.flatten.map do | source_jar | 
+    target_path = "target/index-springsense/#{Pathname.new(source_jar.to_s).basename}"
+    
+    file target_path => [ 'target/index-springsense', source_jar ] do
+      cp source_jar.to_s, target_path
+    end
+  end
+end
+
+directory 'target/index-springsense'
+
+file 'target/index-springsense/plugin.xml' => [ 'target/index-springsense', project('index-springsense').package ] do
+  main_jar = File.basename(project('index-springsense').package.to_s)
+  libraries = plugin_dependencies.map { | jar_path | File.basename(jar_path.to_s) }
+
+  plugin_template = File.new('src/plugin/plugin.xml.erb').read()
+  erb_template = ERB.new(plugin_template)
+  
+  File.open('target/index-springsense/plugin.xml', 'w') do | file | 
+    file.write(erb_template.result(binding))
+  end
+end
+  
+task 'index-springsense:plugin-xml' => 'target/index-springsense/plugin.xml'
+
+task 'index-springsense:plugin-artifact-dir' => [ 'index-springsense:plugin-xml', *copy_jar_tasks([ plugin_dependencies, project('index-springsense').package ].flatten) ]
+  
+file "target/index-springsense-#{project('index-springsense').version}.tar.gz" => 'index-springsense:plugin-artifact-dir' do
+  `cd target && tar -vcf index-springsense-#{project('index-springsense').version}.tar.gz index-springsense && cd ..`
+end
+
+task 'index-springsense:plugin-artifact' => "target/index-springsense-#{project('index-springsense').version}.tar.gz"
