@@ -45,7 +45,8 @@ public class SpringSenseIndexingFilterTest {
 	public void setUp() throws Exception {
 		conf = NutchConfiguration.create();
 		conf.set("springSenseIndexingFilter.matrixDirectory", "/media/matrix.data/current/this");
-		conf.set("springSenseIndexingFilter.fieldsToDisambiguate", "title, content");
+		conf.set("springSenseIndexingFilter.filenameAndUrlFieldsToPreprocess", "url, path");
+		conf.set("springSenseIndexingFilter.fieldsToDisambiguate", "title, content, springsense.url.preprocessed");
 
 		filter = new SpringSenseIndexingFilter();
 		filter.setConf(conf);
@@ -54,6 +55,9 @@ public class SpringSenseIndexingFilterTest {
 		nutchDocument.add("title", "title 1");
 		nutchDocument.add("title", "title 2");
 		nutchDocument.add("content", "content 1");
+		nutchDocument.add("url", "http://datasets.opentestset.com/datasets/Enron_files/full/fischer-m/DesertSky%20Bus%20Distribution.xls");
+		nutchDocument.add("url", "http://datasets.opentestset.com/datasets/Enron_files/full/fischer-m/DesertSky%20Bus%20Distribution 2.xls");
+		nutchDocument.add("path", "/san/datasets/Enron_files/full/fischer-m/DesertSky Bus Distribution.xls");
 
 		parse = new ParseImpl("Not used", new ParseData());
 	}
@@ -72,6 +76,22 @@ public class SpringSenseIndexingFilterTest {
 	public void itShouldConfigureFieldsToDisambiguateCorrectly() {
 		assertThat(filter.getFieldsToDisambiguate(), hasItem("title"));
 		assertThat(filter.getFieldsToDisambiguate(), hasItem("content"));
+		assertThat(filter.getFieldsToDisambiguate(), hasItem("springsense.url.preprocessed"));
+	}
+	
+	@Test
+	public void itShouldConfigureUrlAndFilenameFieldsToPreprocessCorrectly() {
+		assertThat(filter.getUrlAndFilenameFieldsToPreprocess(), hasItem("url"));
+		assertThat(filter.getUrlAndFilenameFieldsToPreprocess(), hasItem("path"));
+	}
+	
+	@Test
+	public void preprocessUrlOrPathShouldPreprocessCorrectly() {
+		assertEquals("Desert Sky Bus Distribution", filter.preprocessUrlOrPath("http://datasets.opentestset.com/datasets/Enron_files/full/fischer-m/DesertSky%20Bus%20Distribution.xls"));
+		assertEquals("Desert Sky Bus Distribution", filter.preprocessUrlOrPath("/san/datasets/Enron_files/full/fischer-m/DesertSky Bus Distribution.xls"));
+		assertEquals("Desert Sky Bus Distribution", filter.preprocessUrlOrPath("/san/datasets/Enron_files/full/fischer-m/Desert_Sky=Bus@Distribution.xls"));
+		assertEquals("Desert Sky Bus Distribution", filter.preprocessUrlOrPath("file:///san/datasets/Enron_files/full/fischer-m/DesertSkyBusDistribution.xls"));
+		assertEquals("0402 Desert Sky Monthly Site Report [1]", filter.preprocessUrlOrPath("http://datasets.opentestset.com/datasets/Enron_files/full/fischer-m/0402%20Desert%20Sky%20Monthly%20Site%20Report%5b1%5d.pdf"));
 	}
 	
 	@Test
@@ -84,8 +104,16 @@ public class SpringSenseIndexingFilterTest {
 
 		assertNotNull(nutchDocument);
 
-		assertTrue(nutchDocument.getFieldNames().contains("springsense.title.text.0"));
-		assertTrue(nutchDocument.getFieldNames().contains("springsense.content.text.0"));
+		assertPreprocessedFields();
+		assertDisambiguatedFields();
+		
+	}
+
+	private void assertDisambiguatedFields() {
+		// SpringSense disambiguated fields
+		assertThat(nutchDocument.getFieldNames(), hasItem("springsense.title.text.0"));
+		assertThat(nutchDocument.getFieldNames(), hasItem("springsense.content.text.0"));
+		assertThat(nutchDocument.getFieldNames(), hasItem("springsense.url.preprocessed.text.0"));
 		
 		NutchField firstVariantTitleField = nutchDocument.getField("springsense.title.text.0");
 		NutchField firstVariantContentField = nutchDocument.getField("springsense.content.text.0");
@@ -97,6 +125,21 @@ public class SpringSenseIndexingFilterTest {
 		assertThat(firstVariantTitleField.getValues(), hasItem((Object)"title_n_01 2"));
 
 		assertThat(firstVariantContentField.getValues(), hasItem((Object)"content_n_01 1"));
+	}
+
+	private void assertPreprocessedFields() {
+		// Pre processed fields
+		assertTrue(nutchDocument.getFieldNames().contains("springsense.url.preprocessed"));
+		assertTrue(nutchDocument.getFieldNames().contains("springsense.path.preprocessed"));
+
+		NutchField preprocessedUrlField = nutchDocument.getField("springsense.url.preprocessed");
+		NutchField preprocessedPathField = nutchDocument.getField("springsense.path.preprocessed");
+		
+		assertEquals(2, preprocessedUrlField.getValues().size());
+		assertEquals(1, preprocessedPathField.getValues().size());
+
+		assertThat(preprocessedUrlField.getValues(), hasItem((Object)"Desert Sky Bus Distribution"));
+		assertThat(preprocessedPathField.getValues(), hasItem((Object)"Desert Sky Bus Distribution"));
 	}
 
 }
